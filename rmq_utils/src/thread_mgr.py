@@ -9,6 +9,10 @@ logger = get_logger(__name__)
 
 
 class Runner:
+    """
+    A class that manages a list of objects that have start(), stop(), and get_thread() methods.
+    """
+
     def __init__(self):
         self.objs = []
 
@@ -27,7 +31,7 @@ class Runner:
             if hasattr(obj, "start") and callable(getattr(obj, "start")):
                 obj.start()
 
-    def stop_all(self, timeout: float = None):
+    def stop_all(self, timeout: float = None, wait: bool = True):
         """
         Call stop() for each object in the list if it has a stop() method.
         """
@@ -35,9 +39,10 @@ class Runner:
         for obj in self.objs:
             if hasattr(obj, "stop") and callable(getattr(obj, "stop")):
                 threads.append(obj.stop())
-        self._join_threads(timeout)
+        if wait:
+            self.join_all(timeout)
 
-    def _join_threads(self, timeout: float = None):
+    def join_all(self, timeout: float = None):
         """
         Wait for all threads in the list to finish.
         """
@@ -55,9 +60,11 @@ class Runner:
 
 class ThreadManager:
     """
-    Base class for subclasses that run a loop on an internally managed thread.
-    A local python queue is used to exchange messages with the client
-    so that the internal thread is not blocked by the client.
+    Base class that provides a framework that runs a function on an internal thread.
+    The function itself is implemented in a subclass. A local queue is maintained
+    for buffering communication with client code to prevent it from blocking the internal thread.
+    This base class is not meant to be directly instantiated.
+    if attempted.
     """
 
     def __init__(self, name: str):
@@ -68,13 +75,9 @@ class ThreadManager:
         self._local_queue = queue.Queue()
         logger.setLevel(Parameters.log_level)
 
-    def _main_loop(self):
-        # override this method in the subclasses
-        raise NotImplementedError
-
     def start(self) -> threading.Thread:
         """
-        Start the main loop in its own thread.
+        Start the main loop on the internal thread.
         """
         if not self.my_thread or not self.my_thread.is_alive():
             self.my_thread = threading.Thread(target=self._main_loop)
@@ -84,19 +87,20 @@ class ThreadManager:
         return self.my_thread
 
     def stop(self) -> threading.Thread:
-        """
-        Stop the main loop.
-        """
+        """Signal the main loop to stop and return a reference to the thread on which it is running."""
         self.stop_flag.set()
         return self.my_thread
 
-    def get_queue(self) -> queue.Queue:
-        return self._local_queue
-
     def get_thread(self) -> threading.Thread:
+        """Return a reference to the thread on which the main loop is running."""
         return self.my_thread
 
-    def _get_msg_from_local_queue(self) -> object | None:
+    def get_queue(self) -> queue.Queue:
+        """Return a reference to the local queue."""
+        return self._local_queue
+
+    def get_msg_from_local_queue(self) -> object | None:
+        """Get a message from the local queue if there is one available. Otherwise, return None after a timeout."""
         try:
             obj = self._local_queue.get(timeout=Parameters.loop_interval)
             self._local_queue.task_done()
@@ -104,10 +108,15 @@ class ThreadManager:
             obj = None
         return obj
 
+    def _main_loop(self):
+        # override this method in the subclasses
+        raise NotImplementedError
+
 
 class Consumer(ThreadManager):
     """
-    A class pulls messages from the given python queue and sends messages to a callback function.
+    This class pulls messages from the given python queue and sends them to a callback function.
+    It inherits from ThreadManager and overrides the _main_loop method.
     """
 
     def __init__(self, name: str, queue: queue.Queue, callback: callable):
@@ -124,6 +133,6 @@ class Consumer(ThreadManager):
         while True:
             if self.stop_flag.is_set():
                 break
-            if not (msg := self._get_msg_from_local_queue()):
+            if not (msg := self.get_msg_from_local_queue()):
                 continue
             self.callback(msg)

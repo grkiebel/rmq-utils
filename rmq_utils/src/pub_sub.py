@@ -54,7 +54,7 @@ class Sender(PubSubBase):
         while True:
             if self.stop_flag.is_set():
                 break
-            if not (msg := self._get_msg_from_local_queue()):
+            if not (msg := self.get_msg_from_local_queue()):
                 continue
             self.publish_message(self.ex_name, msg)
         Connections.close()

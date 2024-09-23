@@ -1,0 +1,1 @@
+Useful utilities for accessing RabbitMQ broker.
