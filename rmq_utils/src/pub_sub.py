@@ -1,8 +1,6 @@
-import threading
-import queue
+from typing import Tuple
 import pika
 from pika import channel as PChan
-from pydantic import BaseModel
 from rmq_utils.src.connections import Connections
 from rmq_utils.src.params import Parameters
 from rmq_utils.src.broker import Broker
@@ -13,24 +11,23 @@ from rmq_utils.src.log_config import get_logger
 logger = get_logger(__name__)
 
 
-class Message(BaseModel):
-    """Defines form of messages to be sent to or received from the message broker."""
-
-    key: str
-    payload: str
-
-
 class PubSubBase(ThreadManager):
 
     def __init__(self, name: str, exchange_name: str):
         super().__init__(name)
         self.ex_name = exchange_name
 
-    def publish_message(self, ex_name: str, msg: Message):
+    def publish_message(self, msg: Tuple[str, str]):
         """Send a message to the exchange on the message broker."""
+        key, payload = msg
         channel = Connections.get_channel()
-        channel.basic_publish(exchange=ex_name, routing_key=msg.key, body=msg.payload)
-        logger.info(f"Sender {self.name}: Sent message to {ex_name} with key {msg.key}")
+        channel.basic_publish(exchange=self.ex_name, routing_key=key, body=payload)
+        logger.info(
+            f"Sender {self.name}: Sent message to {self.ex_name} with key {key}"
+        )
+
+    def message_tuple(self, key: str, payload: str) -> Tuple[str, str]:
+        return key, payload
 
 
 class Sender(PubSubBase):
@@ -56,10 +53,10 @@ class Sender(PubSubBase):
                 break
             if not (msg := self.get_msg_from_local_queue()):
                 continue
-            self.publish_message(self.ex_name, msg)
+            self.publish_message(msg)
         Connections.close()
 
-    def post_message(self, msg: Message):
+    def post_message(self, msg: Tuple[str, str]):
         self._local_queue.put(msg)
 
 
@@ -87,7 +84,7 @@ class Receiver(PubSubBase):
             ):
                 if method:
                     channel.basic_ack(method.delivery_tag)
-                    msg = Message(key=method.routing_key, payload=body.decode())
+                    msg = self.message_tuple(method.routing_key, body.decode())
                     self._local_queue.put(msg)
                     logger.info(f"{self.name}: received message")
                     continue

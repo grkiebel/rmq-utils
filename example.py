@@ -1,9 +1,9 @@
 from time import sleep
+from typing import Tuple
 from rmq_utils import (
     Parameters,
     Broker,
     Connections,
-    Message,
     Sender,
     Receiver,
     Consumer,
@@ -12,9 +12,10 @@ from rmq_utils import (
 
 
 def get_msg_callback(name: str):
-    def msg_callback(msg: Message):
+    def msg_callback(msg: Tuple[str, str]):
+        key, payload = msg
         print(
-            f"👉 Reciever {name}: Received message with key {msg.key} and payload {msg.payload}"
+            f"👉 Reciever {name}: Received message with key {key} and payload {payload}"
         )
 
     return msg_callback
@@ -23,11 +24,11 @@ def get_msg_callback(name: str):
 def post_messages(sender: Sender, keys: list[str]):
     for i in range(5):
         for key in keys:
-            post_message(sender, i, key)
+            post_message(sender, key, f"Message {i}")
 
 
-def post_message(sender, i, key):
-    sender.post_message(Message(key=key, payload=f"Message {i}"))
+def post_message(sender, key, payload):
+    sender.post_message(sender.message_tuple(key, payload))
     sleep(0.2)
 
 
@@ -52,7 +53,7 @@ def simple_example():
     receiver.start()
     consumer.start()
 
-    post_message(sender, 1, "REC")
+    post_message(sender, "REC", "Hello, World!")
 
     print("✋🏻 Stopping...")
     sender.stop()
