@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rmq-utils"
-version = "0.1.0"
+version = "0.1.1"
 description = "Utilities for accessing RabbitMQ message broker"
 dependencies = [
     "pydantic",

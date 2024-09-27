@@ -62,9 +62,8 @@ class Sender(PubSubBase):
 
 class Receiver(PubSubBase):
     """
-    Implements a subscriber that listens to a message queue for incoming messages
-    with a timeout.  If a message is available, it is sent to client. If timeout
-    occurs, the thread checks the stop flag and stops listening if it is set.
+    Implements a subscriber that listens to an AMQP message broker for incoming messages
+    and forwards them to a local queue.
     """
 
     def __init__(self, name: str, exchange_name: str):
