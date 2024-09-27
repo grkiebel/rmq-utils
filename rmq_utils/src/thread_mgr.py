@@ -1,6 +1,7 @@
 import queue
 import threading
 import concurrent.futures
+from typing import List
 from rmq_utils.src.params import Parameters
 from rmq_utils.src.log_config import get_logger
 
@@ -13,21 +14,21 @@ class Runner:
     A class that manages a list of objects that have start(), stop(), and get_thread() methods.
     """
 
-    def __init__(self):
-        self.objs = []
+    def __init__(self, objects: List[object] = None):
+        self.objects: List[object] = objects or []
 
     def __iadd__(self, obj: object):
         """
         Implements the += operator to add an object to the list of managed objects.
         """
-        self.objs.append(obj)
+        self.objects.append(obj)
         return self
 
     def start_all(self) -> None:
         """
         Call start() for each object in the list if it has a start() method.
         """
-        for obj in self.objs:
+        for obj in self.objects:
             if hasattr(obj, "start") and callable(getattr(obj, "start")):
                 obj.start()
 
@@ -36,7 +37,7 @@ class Runner:
         Call stop() for each object in the list if it has a stop() method.
         """
         threads = []
-        for obj in self.objs:
+        for obj in self.objects:
             if hasattr(obj, "stop") and callable(getattr(obj, "stop")):
                 threads.append(obj.stop())
         if wait:
@@ -48,7 +49,7 @@ class Runner:
         """
         threads = [
             obj.get_thread()
-            for obj in self.objs
+            for obj in self.objects
             if hasattr(obj, "get_thread") and callable(getattr(obj, "get_thread"))
         ]
         with concurrent.futures.ThreadPoolExecutor() as executor:
